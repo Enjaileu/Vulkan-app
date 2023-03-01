@@ -10,7 +10,7 @@ struct QueueFamilyIndices
 
 	bool isValid()
 	{
-		return graphicsFamily >= 0;
+		return graphicsFamily >= 0 && presentationFamily >= 0;
 	}
 };
 

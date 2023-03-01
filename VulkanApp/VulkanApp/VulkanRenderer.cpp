@@ -22,7 +22,9 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 	{
 		createInstance();
 		setupDebugMessenger();
+		surface = createSurface();
 		getPhysicalDevice();
+		createLogicalDevice();
 	}
 	catch (const std::runtime_error& e)
 	{
@@ -115,10 +117,12 @@ bool VulkanRenderer::checkInstanceExtensionSupport(const std::vector<const char*
 void VulkanRenderer::createLogicalDevice()
 {
 	QueueFamilyIndices indices = getQueueFamilies(mainDevice.physicalDevice);
+
 	// Vector for queue creation information, and set for family indices.
 	// A set will only keep one indice if they are the same.
 	vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 	std::set<int> queueFamilyIndices = { indices.graphicsFamily, indices.presentationFamily };
+
 	// Queues the logical device needs to create and info to do so.
 	for (int queueFamilyIndex : queueFamilyIndices)
 	{
@@ -129,6 +133,7 @@ void VulkanRenderer::createLogicalDevice()
 		// Vulkan needs to know how to handle multiple queues. It uses priorities.
 		// 1 is the highest priority.
 		queueCreateInfo.pQueuePriorities = &priority;
+
 		queueCreateInfos.push_back(queueCreateInfo);
 	}
 	// Logical device creation
@@ -150,6 +155,7 @@ void VulkanRenderer::createLogicalDevice()
 
 	// Ensure access to queues
 	graphicsQueue = mainDevice.logicalDevice.getQueue(indices.graphicsFamily, 0);
+	presentationQueue = mainDevice.logicalDevice.getQueue(indices.presentationFamily, 0);
 }
 
 void VulkanRenderer::getPhysicalDevice()
@@ -182,7 +188,8 @@ bool VulkanRenderer::checkDeviceSuitable(vk::PhysicalDevice device)
 	// For now we do nothing with this info
 	
 	QueueFamilyIndices indices = getQueueFamilies(device);
-	return indices.isValid();
+	bool extensionSupported = checkDeviceExtensionSupport(device);
+	return indices.isValid() && extensionSupported;
 }
 
 bool VulkanRenderer::checkValidationLayerSupport()
@@ -205,6 +212,25 @@ bool VulkanRenderer::checkValidationLayerSupport()
 	return true;
 }
 
+bool VulkanRenderer::checkDeviceExtensionSupport(vk::PhysicalDevice device)
+{
+	vector<vk::ExtensionProperties> extensions = device.enumerateDeviceExtensionProperties();
+	for (const auto& deviceExtension : deviceExtensions)
+	{
+		bool hasExtension = false;
+		for (const auto& extension : extensions)
+		{
+			if (strcmp(deviceExtension, extension.extensionName) == 0)
+			{
+				hasExtension = true;
+				break;
+			}
+		}
+		if (!hasExtension) return false;
+	}
+	return true;
+}
+
 QueueFamilyIndices VulkanRenderer::getQueueFamilies(vk::PhysicalDevice device)
 {
 	QueueFamilyIndices indices;
@@ -218,6 +244,16 @@ QueueFamilyIndices VulkanRenderer::getQueueFamilies(vk::PhysicalDevice device)
 		{
 			indices.graphicsFamily = i;
 		}
+
+		// Check if queue family support presentation
+		VkBool32 presentationSupport =
+			device.getSurfaceSupportKHR(static_cast<uint32_t>(indices.graphicsFamily), surface);
+		if (queueFamily.queueCount > 0 && presentationSupport)
+		{
+			indices.presentationFamily = i;
+		}
+
+		// check indices
 		if (indices.isValid()) break;
 		++i;
 	}
@@ -285,11 +321,24 @@ void VulkanRenderer::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreat
 
 }
 
+vk::SurfaceKHR VulkanRenderer::createSurface()
+{
+	// Create a surface relatively to our window
+	VkSurfaceKHR _surface;
+	VkResult result = glfwCreateWindowSurface(instance, window, nullptr, &_surface);
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create a vulkan surface.");
+	}
+	return vk::SurfaceKHR(_surface);
+}
+
 /*
  clean
 */
 void VulkanRenderer::clean()
 {
+	instance.destroySurfaceKHR(surface);
 
 	if (enableValidationLayers) {
 		destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);

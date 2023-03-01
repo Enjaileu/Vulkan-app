@@ -32,6 +32,9 @@ private:
 	vk::Instance instance;
 	vk::Queue graphicsQueue;
 
+	vk::SurfaceKHR surface;
+	vk::Queue presentationQueue;
+
 	// instances
 	void createInstance();
 	bool checkInstanceExtensionSupport(const std::vector<const char*>& checkExtensions);
@@ -44,6 +47,7 @@ private:
 
 	// validation extension
 	bool checkValidationLayerSupport();
+	bool checkDeviceExtensionSupport(vk::PhysicalDevice device);
 	std::vector<const char*>getRequiredExtensions();
 
 	// debug
@@ -56,4 +60,6 @@ private:
 		VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	
+	// surface
+	vk::SurfaceKHR createSurface();
 };
