@@ -5,6 +5,13 @@
 #include <stdexcept>
 #include <vector>
 
+#include "VulkanUtilities.h"
+
+struct {
+	vk::PhysicalDevice physicalDevice;
+	vk::Device logicalDevice;
+} mainDevice;
+
 class VulkanRenderer
 {
 public:
@@ -16,7 +23,15 @@ public:
 private:
 	GLFWwindow* window;
 	vk::Instance instance;
+	vk::Queue graphicsQueue;
+
 	void createInstance();
 	bool checkInstanceExtensionSupport(const std::vector<const char*>& checkExtensions);
+	void createLogicalDevice();
+
+	//physical device
+	void getPhysicalDevice();
+	bool checkDeviceSuitable(vk::PhysicalDevice device);
+	QueueFamilyIndices getQueueFamilies(vk::PhysicalDevice device);
 	
 };
