@@ -15,6 +15,13 @@ struct {
 class VulkanRenderer
 {
 public:
+	#ifdef NDEBUG
+		static const bool enableValidationLayers = false;
+	#else
+		static const bool enableValidationLayers = true;
+	#endif
+		static const vector<const char*> validationLayers;
+
 	VulkanRenderer();
 	~VulkanRenderer();
 	int init(GLFWwindow* windowP);
@@ -25,13 +32,28 @@ private:
 	vk::Instance instance;
 	vk::Queue graphicsQueue;
 
+	// instances
 	void createInstance();
 	bool checkInstanceExtensionSupport(const std::vector<const char*>& checkExtensions);
-	void createLogicalDevice();
 
 	//physical device
+	void createLogicalDevice();
 	void getPhysicalDevice();
 	bool checkDeviceSuitable(vk::PhysicalDevice device);
 	QueueFamilyIndices getQueueFamilies(vk::PhysicalDevice device);
+
+	// validation extension
+	bool checkValidationLayerSupport();
+	std::vector<const char*>getRequiredExtensions();
+
+	// debug
+	VkDebugUtilsMessengerEXT debugMessenger;
+	void setupDebugMessenger();
+	VkResult createDebugUtilsMessengerEXT(VkInstance instance,
+		const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+		const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
+	void destroyDebugUtilsMessengerEXT(VkInstance instance,
+		VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
+	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	
 };

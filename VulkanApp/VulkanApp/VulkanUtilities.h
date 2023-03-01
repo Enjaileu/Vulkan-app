@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <iostream>
 using std::vector;
 
 struct QueueFamilyIndices
@@ -17,3 +18,14 @@ const vector<const char*> deviceExtensions
 {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT messageType,
+	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void* pUserData) {
+
+	std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+
+	return VK_FALSE;
+}
