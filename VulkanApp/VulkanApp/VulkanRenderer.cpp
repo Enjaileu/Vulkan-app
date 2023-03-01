@@ -42,8 +42,7 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 */
 void VulkanRenderer::createInstance()
 {
-	// Information about the application
-	// This data is for developer convenience
+	// create app info
 	vk::ApplicationInfo appInfo{};
 	appInfo.pApplicationName = "Vulkan App"; // Name of the app
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0); // Version of the application
@@ -51,25 +50,23 @@ void VulkanRenderer::createInstance()
 	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0); // Custom engine version
 	appInfo.apiVersion = VK_API_VERSION_1_1; // Vulkan version (here 1.1)
 
-	// Everything we create will be created with a createInfo
-	// Here, info about the vulkan creation
+	// create instance info
 	vk::InstanceCreateInfo createInfo{};
-	// createInfo.pNext // Extended information
-	// createInfo.flags // Flags with bitfield
+	// populate instance info with app info
 	createInfo.pApplicationInfo = &appInfo; // Application info from above
 
 	// Setup extensions instance will use
 	vector<const char*> instanceExtensions = getRequiredExtensions();
 
-	// Extensions
+	// check Extensions
 	if (!checkInstanceExtensionSupport(instanceExtensions)) {
 		throw std::runtime_error("VkInstance does not support required extensions");
 	}
-
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
 	createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
-	// Validation layers
+	// check Validation layers
+	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 	if (enableValidationLayers && !checkValidationLayerSupport())
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
@@ -78,6 +75,8 @@ void VulkanRenderer::createInstance()
 	{
 		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
 		createInfo.ppEnabledLayerNames = validationLayers.data();
+		populateDebugMessengerCreateInfo(debugCreateInfo);
+		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
 	}
 	else
 	{
