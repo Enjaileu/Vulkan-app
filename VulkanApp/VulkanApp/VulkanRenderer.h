@@ -32,8 +32,15 @@ private:
 	vk::Instance instance;
 	vk::Queue graphicsQueue;
 
+	VkDebugUtilsMessengerEXT debugMessenger;
+
 	vk::SurfaceKHR surface;
 	vk::Queue presentationQueue;
+
+	vk::SwapchainKHR swapchain;
+	vk::Format swapchainImageFormat;
+	vk::Extent2D swapchainExtent;
+	vector<SwapchainImage> swapchainImages;
 
 	// instances
 	void createInstance();
@@ -51,7 +58,6 @@ private:
 	std::vector<const char*>getRequiredExtensions();
 
 	// debug
-	VkDebugUtilsMessengerEXT debugMessenger;
 	void setupDebugMessenger();
 	VkResult createDebugUtilsMessengerEXT(VkInstance instance,
 		const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
@@ -62,4 +68,12 @@ private:
 	
 	// surface
 	vk::SurfaceKHR createSurface();
+
+	// swapchain
+	SwapchainDetails getSwapchainDetails(vk::PhysicalDevice device);
+	void createSwapchain();
+	vk::SurfaceFormatKHR chooseBestSurfaceFormat(const vector<vk::SurfaceFormatKHR>& formats);
+	vk::PresentModeKHR chooseBestPresentationMode(const vector<vk::PresentModeKHR>& presentationModes);
+	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& surfaceCapabilities);
+	vk::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlagBits aspectFlags);
 };

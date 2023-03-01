@@ -14,6 +14,21 @@ struct QueueFamilyIndices
 	}
 };
 
+struct SwapchainDetails {
+	// What the surface is capable of displaying, e.g. image size/extent
+	vk::SurfaceCapabilitiesKHR surfaceCapabilities;
+	// Vector of the image formats, e.g. RGBA
+	vector<vk::SurfaceFormatKHR> formats;
+	// Vector of presentation modes
+	vector<vk::PresentModeKHR> presentationModes;
+};
+
+struct SwapchainImage
+{
+	vk::Image image;
+	vk::ImageView imageView;
+};
+
 const vector<const char*> deviceExtensions
 {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
