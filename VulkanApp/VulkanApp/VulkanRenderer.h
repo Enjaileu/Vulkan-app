@@ -42,6 +42,8 @@ private:
 	vk::Extent2D swapchainExtent;
 	vector<SwapchainImage> swapchainImages;
 
+	vk::PipelineLayout pipelineLayout;
+
 	// instances
 	void createInstance();
 	bool checkInstanceExtensionSupport(const std::vector<const char*>& checkExtensions);
