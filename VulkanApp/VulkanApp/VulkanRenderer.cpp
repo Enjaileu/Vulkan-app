@@ -2,10 +2,12 @@
 
 #include <set>
 #include <iostream>
+#include <array>
 
 using std::vector;
 using std::cout;
 using std::endl;
+using std::array;
 
 // INIT
 
@@ -28,6 +30,7 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 		getPhysicalDevice();
 		createLogicalDevice();
 		createSwapchain();
+		createRenderPass();
 		createGraphicsPipeline();
 	}
 	catch (const std::runtime_error& e)
@@ -44,6 +47,7 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 void VulkanRenderer::clean()
 {
 	mainDevice.logicalDevice.destroyPipelineLayout(pipelineLayout);
+	mainDevice.logicalDevice.destroyRenderPass(renderPass);
 
 	for (auto image : swapchainImages)
 	{
@@ -720,4 +724,79 @@ VkShaderModule VulkanRenderer::createShaderModule(const vector<char>& code)
 	vk::ShaderModule shaderModule =
 		mainDevice.logicalDevice.createShaderModule(shaderModuleCreateInfo);
 	return shaderModule;
+}
+void VulkanRenderer::createRenderPass()
+{
+	vk::RenderPassCreateInfo renderPassCreateInfo{};
+	// Attachement description : describe color buffer output, depth buffer output...
+	// e.g. (location = 0) in the fragment shader is the first attachment
+	vk::AttachmentDescription colorAttachment{};
+	// Format to use for attachment
+	colorAttachment.format = swapchainImageFormat;
+	// Number of samples t write for multisampling
+	colorAttachment.samples = vk::SampleCountFlagBits::e1;
+	// What to do with attachement before renderer. Here, clear when we start the render pass.
+	colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+	// What to do with attachement after renderer. Here, store the render pass.
+	colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
+	// What to do with stencil before renderer. Here, don't care, we don't use stencil.
+	colorAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+	// What to do with stencil after renderer. Here, don't care, we don't use stencil.
+	colorAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+	// Framebuffer images will be stored as an image, but image can have different layouts
+	// to give optimal use for certain operations
+	// Image data layout before render pass starts
+	colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
+	// Image data layout after render pass
+	colorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+	renderPassCreateInfo.attachmentCount = 1;
+	renderPassCreateInfo.pAttachments = &colorAttachment;
+	// Attachment reference uses an attachment index that refers to index
+	// in the attachement list passed to renderPassCreateInfo
+	vk::AttachmentReference colorAttachmentReference{};
+	colorAttachmentReference.attachment = 0;
+	// Layout of the subpass (between initial and final layout)
+	colorAttachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+	// Subpass description, will reference attachements
+	vk::SubpassDescription subpass{};
+	// Pipeline type the subpass will be bound to.
+	// Could be compute pipeline, or nvidia raytracing...
+	subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorAttachmentReference;
+	renderPassCreateInfo.subpassCount = 1;
+
+	renderPassCreateInfo.pSubpasses = &subpass;
+	// Subpass dependencies: transitions between subpasses + from the last subpass to what happens after
+	// Need to determine when layout transitions occur using subpass dependencies.
+	// Will define implicitly layout transitions.
+	array<vk::SubpassDependency, 2> subpassDependencies;
+	// -- From layout undefined to color attachment optimal
+	// ---- Transition must happens after
+	subpassDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL; // External: from outside the subpasses
+	// Which stage of the pipeline has to happen before
+	subpassDependencies[0].srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+	subpassDependencies[0].srcAccessMask = vk::AccessFlagBits::eMemoryRead;
+	// ---- But must happens before
+	// Conversion should happen before the first subpass starts
+	subpassDependencies[0].dstSubpass = 0;
+	subpassDependencies[0].dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+	// ...and before the color attachment attempts to read or write
+	subpassDependencies[0].dstAccessMask =
+		vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite;
+	subpassDependencies[0].dependencyFlags = vk::DependencyFlags(); // No dependency flag
+	// -- From layout color attachment optimal to image layout present
+	// ---- Transition must happens after
+	subpassDependencies[1].srcSubpass = 0;
+	subpassDependencies[1].srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+	subpassDependencies[1].srcAccessMask =
+		vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite;
+	// ---- But must happens before
+	subpassDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	subpassDependencies[1].dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+	subpassDependencies[1].dstAccessMask = vk::AccessFlagBits::eMemoryRead;
+	subpassDependencies[1].dependencyFlags = vk::DependencyFlags();
+	renderPassCreateInfo.dependencyCount = static_cast<uint32_t>(subpassDependencies.size());
+	renderPassCreateInfo.pDependencies = subpassDependencies.data();
+	renderPass = mainDevice.logicalDevice.createRenderPass(renderPassCreateInfo);
 }

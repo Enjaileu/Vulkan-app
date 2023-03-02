@@ -43,6 +43,7 @@ private:
 	vector<SwapchainImage> swapchainImages;
 
 	vk::PipelineLayout pipelineLayout;
+	vk::RenderPass renderPass;
 
 	// instances
 	void createInstance();
@@ -82,4 +83,6 @@ private:
 	// shaders
 	void createGraphicsPipeline();
 	VkShaderModule createShaderModule(const vector<char>& code);
+	void createRenderPass();
+	
 };
