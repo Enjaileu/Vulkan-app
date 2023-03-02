@@ -35,7 +35,9 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 		createGraphicsPipeline();
 		createFramebuffers();
 		createGraphicsCommandPool();
+		createGraphicsCommandBuffers();
 		recordCommands();
+		createSynchronisation();
 	}
 	catch (const std::runtime_error& e)
 	{
@@ -50,6 +52,14 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 */
 void VulkanRenderer::clean()
 {
+	mainDevice.logicalDevice.waitIdle(); 
+	for (size_t i = 0; i < MAX_FRAME_DRAWS; ++i)
+	{
+		mainDevice.logicalDevice.destroySemaphore(renderFinished[i]);
+		mainDevice.logicalDevice.destroySemaphore(imageAvailable[i]);
+		mainDevice.logicalDevice.destroyFence(drawFences[i]);
+	}
+
 	mainDevice.logicalDevice.destroyCommandPool(graphicsCommandPool);
 
 	for (auto framebuffer : swapchainFramebuffers)
@@ -80,6 +90,52 @@ void VulkanRenderer::clean()
 const vector<const char*> VulkanRenderer::validationLayers{
 	"VK_LAYER_KHRONOS_validation"
 };
+
+void VulkanRenderer::draw()
+{
+	// 0. Freeze code until the drawFences[currentFrame] is open
+	mainDevice.logicalDevice.waitForFences(drawFences[currentFrame], VK_TRUE,
+		std::numeric_limits<uint32_t>::max());
+	
+	// When passing the fence, we close it behind us
+	mainDevice.logicalDevice.resetFences(drawFences[currentFrame]);
+
+	// 1. Get next available image to draw and set a semaphore to signal
+	// when we're finished with the image.
+	uint32_t imageToBeDrawnIndex = (mainDevice.logicalDevice.acquireNextImageKHR(swapchain,
+		std::numeric_limits<uint32_t>::max(), imageAvailable[currentFrame], drawFences[currentFrame])).value;
+
+	// 2. Submit command buffer to queue for execution, make sure it waits
+	// for the image to be signaled as available before drawing, and
+	// signals when it has finished rendering.
+	vk::SubmitInfo submitInfo{};
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &imageAvailable[currentFrame];
+	// Keep doing command buffer until imageAvailable is true
+	vk::PipelineStageFlags waitStages[]{ vk::PipelineStageFlagBits::eColorAttachmentOutput };
+	// Stages to check semaphores at
+	submitInfo.pWaitDstStageMask = waitStages;
+	submitInfo.commandBufferCount = 1;
+	// Command buffer to submit
+	submitInfo.pCommandBuffers = &commandBuffers[imageToBeDrawnIndex];
+	// Semaphores to signal when command buffer finishes
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &renderFinished[currentFrame];
+	graphicsQueue.submit(submitInfo, drawFences[currentFrame]);
+
+	// 3. Present image to screen when it has signalled finished rendering
+	vk::PresentInfoKHR presentInfo{};
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &renderFinished[currentFrame];
+	presentInfo.swapchainCount = 1;
+	// Swapchains to present to
+	presentInfo.pSwapchains = &swapchain;
+	// Index of images in swapchains to present
+	presentInfo.pImageIndices = &imageToBeDrawnIndex;
+	presentationQueue.presentKHR(presentInfo);
+
+	currentFrame = (currentFrame + 1) % MAX_FRAME_DRAWS;
+}
 
 // INSTANCE
 
@@ -895,7 +951,7 @@ void VulkanRenderer::recordCommands()
 	vk::CommandBufferBeginInfo commandBufferBeginInfo{};
 
 	// Buffer can be resubmited when it has already been submited
-	commandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
+	//commandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
 
 	// Information about how to being a render pass (only for graphical apps)
 	vk::RenderPassBeginInfo renderPassBeginInfo{};
@@ -905,14 +961,17 @@ void VulkanRenderer::recordCommands()
 
 	// Start point of render pass in pixel
 	renderPassBeginInfo.renderArea.offset = vk::Offset2D{ 0, 0 };
+	//commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
 	// Size of region to run render pass on
 	renderPassBeginInfo.renderArea.extent = swapchainExtent;
+
 	vk::ClearValue clearValues{};
 	std::array<float, 4> colors{ 0.6f, 0.65f, 0.4f, 1.0f };
 	clearValues.color = vk::ClearColorValue{ colors };
 	renderPassBeginInfo.pClearValues = &clearValues;
 	renderPassBeginInfo.clearValueCount = 1;
+
 	for (size_t i = 0; i < commandBuffers.size(); ++i)
 	{
 		// Because 1-to-1 relationship
@@ -935,5 +994,28 @@ void VulkanRenderer::recordCommands()
 		commandBuffers[i].endRenderPass();
 		// Stop recordind to command buffer
 		commandBuffers[i].end();
+	}
+}
+
+// DRAWING
+
+void VulkanRenderer::createSynchronisation()
+{
+	imageAvailable.resize(MAX_FRAME_DRAWS);
+	renderFinished.resize(MAX_FRAME_DRAWS);
+	drawFences.resize(MAX_FRAME_DRAWS);
+
+	vk::SemaphoreCreateInfo semaphoreCreateInfo{}; 
+
+	// Fence creation info
+	vk::FenceCreateInfo fenceCreateInfo{};
+	// Fence starts open
+	fenceCreateInfo.flags = vk::FenceCreateFlagBits::eSignaled;
+	
+	for (size_t i = 0; i < MAX_FRAME_DRAWS; ++i)
+	{
+		imageAvailable[i] = mainDevice.logicalDevice.createSemaphore(semaphoreCreateInfo);
+		renderFinished[i] = mainDevice.logicalDevice.createSemaphore(semaphoreCreateInfo);
+		drawFences[i] = mainDevice.logicalDevice.createFence(fenceCreateInfo);
 	}
 }

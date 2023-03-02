@@ -27,6 +27,8 @@ public:
 	int init(GLFWwindow* windowP);
 	void clean();
 
+	void draw();
+
 private:
 	GLFWwindow* window;
 	vk::Instance instance;
@@ -38,6 +40,7 @@ private:
 	vk::Queue presentationQueue;
 
 	vk::SwapchainKHR swapchain;
+	//VkSwapchainKHR swapchain;
 	vk::Format swapchainImageFormat;
 	vk::Extent2D swapchainExtent;
 	vector<SwapchainImage> swapchainImages;
@@ -48,6 +51,13 @@ private:
 	vector<vk::Framebuffer> swapchainFramebuffers;
 	vk::CommandPool graphicsCommandPool;
 	vector<vk::CommandBuffer> commandBuffers;
+
+	vector<vk::Semaphore> imageAvailable;
+	vector<vk::Semaphore> renderFinished;
+	const int MAX_FRAME_DRAWS = 2;
+	int currentFrame{ 0 };
+
+	vector<vk::Fence> drawFences;
 
 	// instances
 	void createInstance();
@@ -92,5 +102,7 @@ private:
 	void createGraphicsCommandPool();
 	void createGraphicsCommandBuffers();
 	void recordCommands();
-	
+
+	// drawing
+	void createSynchronisation();
 };
