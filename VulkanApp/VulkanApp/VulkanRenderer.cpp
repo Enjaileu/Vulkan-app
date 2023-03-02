@@ -28,6 +28,7 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 		getPhysicalDevice();
 		createLogicalDevice();
 		createSwapchain();
+		createGraphicsPipeline();
 	}
 	catch (const std::runtime_error& e)
 	{
@@ -557,3 +558,43 @@ vk::ImageView VulkanRenderer::createImageView(vk::Image image, vk::Format format
 	return imageView;
 }
 
+// SHADERS
+
+void VulkanRenderer::createGraphicsPipeline()
+{
+	// Read shader code and format it through a shader module
+	auto vertexShaderCode = readShaderFile("vert.spv");
+	auto fragmentShaderCode = readShaderFile("frag.spv");
+	vk::ShaderModule vertexShaderModule = createShaderModule(vertexShaderCode);
+	vk::ShaderModule fragmentShaderModule = createShaderModule(fragmentShaderCode);
+
+	// -- SHADER STAGE CREATION INFO --
+	// Vertex stage creation info
+	vk::PipelineShaderStageCreateInfo vertexShaderCreateInfo{};
+	vertexShaderCreateInfo.stage = vk::ShaderStageFlagBits::eVertex; // Used to know which shader
+	vertexShaderCreateInfo.module = vertexShaderModule;
+	vertexShaderCreateInfo.pName = "main"; // Pointer to the start function in the shader
+	// Fragment stage creation info
+	vk::PipelineShaderStageCreateInfo fragmentShaderCreateInfo{};
+	fragmentShaderCreateInfo.stage = vk::ShaderStageFlagBits::eFragment;
+	fragmentShaderCreateInfo.module = fragmentShaderModule;
+	fragmentShaderCreateInfo.pName = "main";
+	// Graphics pipeline requires an array of shader create info
+	vk::PipelineShaderStageCreateInfo shaderStages[]{
+	vertexShaderCreateInfo, fragmentShaderCreateInfo };
+	// Create pipeline
+
+	// Destroy shader modules
+	mainDevice.logicalDevice.destroyShaderModule(fragmentShaderModule);
+	mainDevice.logicalDevice.destroyShaderModule(vertexShaderModule);
+}
+VkShaderModule VulkanRenderer::createShaderModule(const vector<char>& code)
+{
+	vk::ShaderModuleCreateInfo shaderModuleCreateInfo{};
+	shaderModuleCreateInfo.codeSize = code.size();
+	// Conversion between pointer types with reinterpret_cast
+	shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+	vk::ShaderModule shaderModule =
+		mainDevice.logicalDevice.createShaderModule(shaderModuleCreateInfo);
+	return shaderModule;
+}

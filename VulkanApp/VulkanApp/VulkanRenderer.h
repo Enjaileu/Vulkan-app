@@ -76,4 +76,8 @@ private:
 	vk::PresentModeKHR chooseBestPresentationMode(const vector<vk::PresentModeKHR>& presentationModes);
 	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& surfaceCapabilities);
 	vk::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlagBits aspectFlags);
+
+	// shaders
+	void createGraphicsPipeline();
+	VkShaderModule createShaderModule(const vector<char>& code);
 };
