@@ -22,6 +22,7 @@ VulkanRenderer::~VulkanRenderer()
 int VulkanRenderer::init(GLFWwindow* windowP)
 {
 	window = windowP;
+
 	try
 	{
 		createInstance();
@@ -32,6 +33,7 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 		createSwapchain();
 		createRenderPass();
 		createGraphicsPipeline();
+		createFramebuffers();
 	}
 	catch (const std::runtime_error& e)
 	{
@@ -46,6 +48,11 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 */
 void VulkanRenderer::clean()
 {
+	for (auto framebuffer : swapchainFramebuffers)
+	{
+		mainDevice.logicalDevice.destroyFramebuffer(framebuffer);
+	}
+
 	mainDevice.logicalDevice.destroyPipeline(graphicsPipeline);
 	mainDevice.logicalDevice.destroyPipelineLayout(pipelineLayout);
 	mainDevice.logicalDevice.destroyRenderPass(renderPass);
@@ -826,4 +833,27 @@ void VulkanRenderer::createRenderPass()
 	renderPassCreateInfo.dependencyCount = static_cast<uint32_t>(subpassDependencies.size());
 	renderPassCreateInfo.pDependencies = subpassDependencies.data();
 	renderPass = mainDevice.logicalDevice.createRenderPass(renderPassCreateInfo);
+}
+
+void VulkanRenderer::createFramebuffers()
+{
+	// Create one framebuffer for each swapchain image
+	swapchainFramebuffers.resize(swapchainImages.size());
+	for (size_t i = 0; i < swapchainFramebuffers.size(); ++i)
+	{
+		// Setup attachments
+		array<vk::ImageView, 1> attachments{ swapchainImages[i].imageView };
+		// Create info
+		vk::FramebufferCreateInfo framebufferCreateInfo{};
+		// Render pass layout the framebuffer will be used with
+		framebufferCreateInfo.renderPass = renderPass;
+		framebufferCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+		// List of attachments (1:1 with render pass, thanks to variable i)
+		framebufferCreateInfo.pAttachments = attachments.data();
+		framebufferCreateInfo.width = swapchainExtent.width;
+		framebufferCreateInfo.height = swapchainExtent.height;
+		// Framebuffer layers
+		framebufferCreateInfo.layers = 1;
+		swapchainFramebuffers[i] = mainDevice.logicalDevice.createFramebuffer(framebufferCreateInfo);
+	}
 }

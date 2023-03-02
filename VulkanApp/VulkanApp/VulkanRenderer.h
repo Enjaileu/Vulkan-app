@@ -45,6 +45,7 @@ private:
 	vk::PipelineLayout pipelineLayout;
 	vk::RenderPass renderPass;
 	vk::Pipeline graphicsPipeline;
+	vector<vk::Framebuffer> swapchainFramebuffers;
 
 	// instances
 	void createInstance();
@@ -85,5 +86,6 @@ private:
 	void createGraphicsPipeline();
 	VkShaderModule createShaderModule(const vector<char>& code);
 	void createRenderPass();
+	void createFramebuffers();
 	
 };
