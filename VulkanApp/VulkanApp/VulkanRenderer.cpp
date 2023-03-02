@@ -34,6 +34,8 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
+		createGraphicsCommandPool();
+		recordCommands();
 	}
 	catch (const std::runtime_error& e)
 	{
@@ -48,6 +50,8 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 */
 void VulkanRenderer::clean()
 {
+	mainDevice.logicalDevice.destroyCommandPool(graphicsCommandPool);
+
 	for (auto framebuffer : swapchainFramebuffers)
 	{
 		mainDevice.logicalDevice.destroyFramebuffer(framebuffer);
@@ -855,5 +859,81 @@ void VulkanRenderer::createFramebuffers()
 		// Framebuffer layers
 		framebufferCreateInfo.layers = 1;
 		swapchainFramebuffers[i] = mainDevice.logicalDevice.createFramebuffer(framebufferCreateInfo);
+	}
+}
+
+void VulkanRenderer::createGraphicsCommandPool()
+{
+	QueueFamilyIndices queueFamilyIndices = getQueueFamilies(mainDevice.physicalDevice);
+
+	VkCommandPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	// Queue family type that buffers from this command pool will use
+	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
+
+	graphicsCommandPool = mainDevice.logicalDevice.createCommandPool(poolInfo);
+}
+
+void VulkanRenderer::createGraphicsCommandBuffers()
+{
+	// Create one command buffer for each framebuffer
+	commandBuffers.resize(swapchainFramebuffers.size());
+	vk::CommandBufferAllocateInfo commandBufferAllocInfo{}; // We are using a pool
+	commandBufferAllocInfo.commandPool = graphicsCommandPool;
+	commandBufferAllocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+
+	// Primary means the command buffer will submit directly to a queue.
+	// Secondary cannot be called by a queue, but by an other primary command
+	// buffer, via vkCmdExecuteCommands.
+	commandBufferAllocInfo.level = vk::CommandBufferLevel::ePrimary;
+	commandBuffers = mainDevice.logicalDevice.allocateCommandBuffers(commandBufferAllocInfo);
+}
+
+void VulkanRenderer::recordCommands()
+{
+	// How to begin each command buffer
+	vk::CommandBufferBeginInfo commandBufferBeginInfo{};
+
+	// Buffer can be resubmited when it has already been submited
+	commandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
+
+	// Information about how to being a render pass (only for graphical apps)
+	vk::RenderPassBeginInfo renderPassBeginInfo{};
+
+	// Render pass to begin
+	renderPassBeginInfo.renderPass = renderPass;
+
+	// Start point of render pass in pixel
+	renderPassBeginInfo.renderArea.offset = vk::Offset2D{ 0, 0 };
+
+	// Size of region to run render pass on
+	renderPassBeginInfo.renderArea.extent = swapchainExtent;
+	vk::ClearValue clearValues{};
+	std::array<float, 4> colors{ 0.6f, 0.65f, 0.4f, 1.0f };
+	clearValues.color = vk::ClearColorValue{ colors };
+	renderPassBeginInfo.pClearValues = &clearValues;
+	renderPassBeginInfo.clearValueCount = 1;
+	for (size_t i = 0; i < commandBuffers.size(); ++i)
+	{
+		// Because 1-to-1 relationship
+		renderPassBeginInfo.framebuffer = swapchainFramebuffers[i];
+
+		// Start recording commands to command buffer
+		commandBuffers[i].begin(commandBufferBeginInfo);
+		// Begin render pass
+		// All draw commands inline (no secondary command buffers)
+		commandBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+
+		// Bind pipeline to be used in render pass, you could switch pipelines for different subpasses
+		commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
+
+		// Execute pipeline
+		// Draw 3 vertices, 1 instance, with no offset. Instance allow you
+		// to draw several instances with one draw call.
+		commandBuffers[i].draw(3, 1, 0, 0);
+		// End render pass
+		commandBuffers[i].endRenderPass();
+		// Stop recordind to command buffer
+		commandBuffers[i].end();
 	}
 }
