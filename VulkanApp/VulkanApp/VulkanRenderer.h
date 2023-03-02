@@ -44,6 +44,7 @@ private:
 
 	vk::PipelineLayout pipelineLayout;
 	vk::RenderPass renderPass;
+	vk::Pipeline graphicsPipeline;
 
 	// instances
 	void createInstance();

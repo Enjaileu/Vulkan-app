@@ -46,6 +46,7 @@ int VulkanRenderer::init(GLFWwindow* windowP)
 */
 void VulkanRenderer::clean()
 {
+	mainDevice.logicalDevice.destroyPipeline(graphicsPipeline);
 	mainDevice.logicalDevice.destroyPipelineLayout(pipelineLayout);
 	mainDevice.logicalDevice.destroyRenderPass(renderPass);
 
@@ -627,21 +628,7 @@ void VulkanRenderer::createGraphicsPipeline()
 	viewportStateCreateInfo.pViewports = &viewport;
 	viewportStateCreateInfo.scissorCount = 1;
 	viewportStateCreateInfo.pScissors = &scissor;
-	// -- DYNAMIC STATE --
-	// This will be alterable, so you don't have to create an entire pipeline when you want to change
-	// parameters. We won't use this feature, this is an example.
-
-	/*
-	vector<vk::DynamicState> dynamicStateEnables;
-	// Viewport can be resized in the command buffer with vkCmdSetViewport(commandBuffer, 0, 1, &newViewport);
-	dynamicStateEnables.push_back(vk::DynamicState::eViewport);
-	// Scissors can be resized in the command buffer with vkCmdSetScissor(commandBuffer, 0, 1, &newScissor);
-	dynamicStateEnables.push_back(vk::DynamicState::eScissor);
-	vk::PipelineDynamicStateCreateInfo dynamicStateCreateInfo{};
-	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStateEnables.size());
-	dynamicStateCreateInfo.pDynamicStates = dynamicStateEnables.data();
-	*/
-
+	
 	// -- RASTERIZER --
 	vk::PipelineRasterizationStateCreateInfo rasterizerCreateInfo{};
 	// Treat elements beyond the far plane like being on the far place, needs a GPU device feature
@@ -681,11 +668,13 @@ void VulkanRenderer::createGraphicsPipeline()
 		vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB |
 		vk::ColorComponentFlagBits::eA;
 	colorBlendAttachment.blendEnable = VK_TRUE;
+
 	// Blending equation:
 	// (srcColorBlendFactor * new color) colorBlendOp (dstColorBlendFactor * old color)
 	colorBlendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
 	colorBlendAttachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
 	colorBlendAttachment.colorBlendOp = vk::BlendOp::eAdd;
+
 	// Replace the old alpha with the new one: (1 * new alpha) + (0 * old alpha)
 	colorBlendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
 	colorBlendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
@@ -700,6 +689,7 @@ void VulkanRenderer::createGraphicsPipeline()
 	pipelineLayoutCreateInfo.pSetLayouts = nullptr;
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+
 	// Create pipeline layout
 	pipelineLayout = mainDevice.logicalDevice.createPipelineLayout(pipelineLayoutCreateInfo);
 
@@ -709,6 +699,42 @@ void VulkanRenderer::createGraphicsPipeline()
 	// -- PASSES --
 	// Passes are composed of a sequence of subpasses that can pass data from one to another
 
+	// -- GRAPHICS PIPELINE CREATION --
+	vk::GraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStages;
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyCreateInfo;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = nullptr;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizerCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisamplingCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendingCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
+	graphicsPipelineCreateInfo.layout = pipelineLayout;
+
+	// Renderpass description the pipeline is compatible with.
+	// This pipeline will be used by the render pass.
+	graphicsPipelineCreateInfo.renderPass = renderPass;
+
+	// Subpass of render pass to use with pipeline. Usually one pipeline by subpass.
+	graphicsPipelineCreateInfo.subpass = 0;
+
+	// When you want to derivate a pipeline from an other pipeline OR
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+	// Index of pipeline being created to derive from (in case of creating multiple at once)
+	graphicsPipelineCreateInfo.basePipelineIndex = -1;
+
+	// The handle is a cache when you want to save your pipeline to create an other later
+	auto result = mainDevice.logicalDevice.createGraphicsPipeline(VK_NULL_HANDLE, graphicsPipelineCreateInfo);
+
+	// We could have used createGraphicsPipelines to create multiple pipelines at once.
+	if (result.result != vk::Result::eSuccess)
+	{
+		throw std::runtime_error("Cound not create a graphics pipeline");
+	}
+	graphicsPipeline = result.value;
 
 	// Destroy shader modules
 	mainDevice.logicalDevice.destroyShaderModule(fragmentShaderModule);
@@ -725,6 +751,7 @@ VkShaderModule VulkanRenderer::createShaderModule(const vector<char>& code)
 		mainDevice.logicalDevice.createShaderModule(shaderModuleCreateInfo);
 	return shaderModule;
 }
+
 void VulkanRenderer::createRenderPass()
 {
 	vk::RenderPassCreateInfo renderPassCreateInfo{};
